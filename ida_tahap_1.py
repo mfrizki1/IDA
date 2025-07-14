@@ -1,21 +1,21 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import N, filedialog, messagebox
 import customtkinter as ctk
 import pandas as pd
 import json
 import os
 
 CONFIG_FILE = "config.json"
-# Ini adalah kolom tujuan standar di DMS kita. Pengguna akan memetakan ke daftar ini.
-DESTINATION_COLUMNS = [
-    "Tidak Digunakan",
-    "Nomor Pesanan",
-    "Nama Pelanggan",
-    "SKU Produk",
-    "Jumlah",
-    "Nomor Telepon",
-    "Tanggal Pesanan",
-]
+# # Ini adalah kolom tujuan standar di DMS kita. Pengguna akan memetakan ke daftar ini.
+# DESTINATION_COLUMNS = [
+#     "Tidak Digunakan",
+#     "Nomor Pesanan",
+#     "Nama Pelanggan",
+#     "SKU Produk",
+#     "Jumlah",
+#     "Nomor Telepon",
+#     "Tanggal Pesanan",
+# ]
 
 
 class MappingWizard(ctk.CTkToplevel):
@@ -29,6 +29,7 @@ class MappingWizard(ctk.CTkToplevel):
         self.grab_set()  # Fokus input hanya ke window ini
 
         self.mapping_widgets = []
+        self.existing_config = self.load_existing_config()
 
         # --- Frame Utama ---
         self.main_frame = ctk.CTkFrame(self)
@@ -66,6 +67,16 @@ class MappingWizard(ctk.CTkToplevel):
         )
         self.save_button.pack(pady=10)
 
+    def load_existing_config(self):
+        """"Mencoba memuat config.json jika ada."""
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    return json.load(f)
+            except(json.JSONDecodeError, IOError):
+                return None
+        return None
+
     def select_csv_file(self):
         """Membuka dialog untuk memilih file CSV dan memuat headernya."""
         file_path = filedialog.askopenfilename(
@@ -89,7 +100,6 @@ class MappingWizard(ctk.CTkToplevel):
 
     def populate_mapping_ui(self, columns):
         """Membuat baris UI untuk setiap kolom dari CSV."""
-        # Bersihkan frame sebelum mengisi
         for widget in self.mapping_frame.winfo_children():
             widget.destroy()
         self.mapping_widgets.clear()
@@ -104,6 +114,12 @@ class MappingWizard(ctk.CTkToplevel):
             header_frame, text="Data untuk DMS", font=ctk.CTkFont(weight="bold")
         ).pack(side="right", padx=15, pady=5, expand=True)
 
+        # Balikkan mapping lama untuk pencarian yang mudah
+        reversed_mappings = {}
+        if self.existing_config and "column_mappings" in self.existing_config:
+            for dest, source in self.existing_config["column_mappings"].items():
+                reversed_mappings[source] = dest
+
         for col in columns:
             row_frame = ctk.CTkFrame(self.mapping_frame)
             row_frame.pack(fill="x", pady=2)
@@ -111,12 +127,18 @@ class MappingWizard(ctk.CTkToplevel):
             label = ctk.CTkLabel(row_frame, text=col, anchor="w")
             label.pack(side="left", padx=15, pady=5, expand=True)
 
-            combo = ctk.CTkComboBox(row_frame, values=DESTINATION_COLUMNS)
-            combo.pack(side="right", padx=15, pady=5, expand=True)
-            combo.set("Tidak Digunakan") # Nilai Default
+            # combo = ctk.CTkComboBox(row_frame, values=DESTINATION_COLUMNS)
+            # combo.pack(side="right", padx=15, pady=5, expand=True)
+            # combo.set("Tidak Digunakan") # Nilai Default
+
+            entry = ctk.CTkEntry(row_frame, placeholder_text="Ketik nama kolom tujuan...")
+            entry.pack(side="right", padx=15, pady=5, expand=True)
+
+            if col in reversed_mappings:
+                entry.insert(0, reversed_mappings)
 
             # Simpan referensi ke label dan combobox untuk dibaca saat menyimpan
-            self.mapping_widgets.append({"source":col, "combo":combo})
+            self.mapping_widgets.append({"source":col, "entry":entry})
 
 
     def save_configuration(self):
@@ -138,7 +160,7 @@ class MappingWizard(ctk.CTkToplevel):
         try: 
             with open(CONFIG_FILE, 'w') as f:
                 json.dump(config_data, f, indent=4)
-            messagebox.showinfo("Sukses", f"Konfigurasi berhasil disimpan ke '{CONFIG_FILE}'")
+            messagebox.showinfo("Sukses", f"Konfigurasi berhasil disimpan/diperbarui ke '{CONFIG_FILE}'")
             self.destroy() # Tutup jendela wizard setelah berhasil menyimpan
         except Exception as e:
             messagebox.showerror("Error Menyimpan", f"Gagal menyimpan file konfigurasi.\n\nError: {e}")
